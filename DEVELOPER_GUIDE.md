@@ -244,8 +244,10 @@ Suggested commands:
 # Run all currently available tests.
 & $PY -m pytest
 
-# Once markers are introduced, use focused runs.
+# Run the smoke-test layer after ordinary source edits.
 & $PY -m pytest -m smoke_tests
+
+# These marker names are reserved for the next testing layers.
 & $PY -m pytest -m consistency_checks
 & $PY -m pytest -m regression_tests
 ```

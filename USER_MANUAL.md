@@ -443,13 +443,17 @@ examples, function calls, serialization, and metric formulas. They are not a
 substitute for full scientific validation against a completed cancer-cohort
 analysis.
 
-When the test suite is organized with markers, the recommended commands will
-be:
+The current smoke-test layer can be run with:
 
 ```powershell
 # Quick functionality checks
 & $PY -m pytest -m smoke_tests
+```
 
+The following marker names are reserved for future structural and
+artifact-based layers:
+
+```powershell
 # Structural checks of inputs and exported files
 & $PY -m pytest -m consistency_checks
 

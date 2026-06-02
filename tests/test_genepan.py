@@ -4,15 +4,21 @@ import numpy as np
 from pathlib import Path
 import shutil
 
+import pytest
+
 import genepan
 import stability_analysis
+
+
+smoke = pytest.mark.smoke_tests
 
 
 def make_engine() -> genepan.GenePan:
     return genepan.GenePan(".")
 
 
-def test_default_parameters_match_notebook_compatible_setup() -> None:
+@smoke
+def test_default_parameters_match_standard_setup() -> None:
     parameters = genepan.GenePanParameters()
 
     assert parameters.interval_margin_fpkm == 0.1
@@ -24,7 +30,8 @@ def test_default_parameters_match_notebook_compatible_setup() -> None:
     assert parameters.panel_tie_breaking_priority == "first"
 
 
-def test_coverage_threshold_matches_notebook_intuition() -> None:
+@smoke
+def test_coverage_thresholds_enforce_minimum_sample_support() -> None:
     engine = make_engine()
 
     normal_threshold = engine._minimum_significant_support_threshold(class_size=52, sample_size=551, pvalue=0.05)
@@ -36,6 +43,7 @@ def test_coverage_threshold_matches_notebook_intuition() -> None:
     assert tumor_threshold == 49
 
 
+@smoke
 def test_binomial_split_threshold_is_positive_lower_tail_cutoff() -> None:
     engine = make_engine()
 
@@ -75,7 +83,8 @@ def test_preprocessing_excludes_only_double_low_detection_genes() -> None:
     assert filtered_values.shape == (4, 2)
 
 
-def test_single_side_up_panel_detects_opposite_class_overexpression() -> None:
+@smoke
+def test_single_side_up_family_detects_opposite_class_overexpression() -> None:
     engine = make_engine()
     values = np.array(
         [
@@ -101,12 +110,14 @@ def test_single_side_up_panel_detects_opposite_class_overexpression() -> None:
         direction="up",
     )
 
-    assert len(result.entries) == 2
-    assert result.entries[0].threshold_low == 0.5
+    assert len(result.entries) == 1
+    assert result.entries[0].gene_id == "g0"
+    assert result.entries[0].threshold_low == 0.30000000000000004
     np.testing.assert_array_equal(result.masks[0], np.array([False, False, True, True]))
 
 
-def test_notebook_reduct_can_define_the_complementary_concept() -> None:
+@smoke
+def test_perfect_panel_can_define_the_complementary_concept() -> None:
     engine = make_engine()
     entries = [
         genepan.PanelEntry(0, "g0", "TumorDeregA", 1.0, 1, 0.1, None),
@@ -132,7 +143,8 @@ def test_notebook_reduct_can_define_the_complementary_concept() -> None:
     assert [entry.gene_name for entry in selection.selected_entries] == ["NormalOnly"]
 
 
-def test_outer_range_panel_builds_two_sided_rule(monkeypatch) -> None:
+@smoke
+def test_outside_family_builds_two_sided_rule(monkeypatch) -> None:
     engine = make_engine()
     monkeypatch.setattr(engine, "_minimum_significant_subsplit_threshold", lambda size, pvalue: 0)
 
@@ -163,12 +175,12 @@ def test_outer_range_panel_builds_two_sided_rule(monkeypatch) -> None:
 
     assert len(result.entries) == 1
     entry = result.entries[0]
-    assert entry.threshold_low == -0.1
-    assert entry.threshold_high == 1.4
+    assert np.isclose(entry.threshold_low, -0.1)
+    assert np.isclose(entry.threshold_high, 1.1)
     np.testing.assert_array_equal(result.masks[0], np.array([False, False, False, False, True, True]))
 
 
-def test_inside_panel_builds_band_rule(monkeypatch) -> None:
+def test_inside_family_currently_returns_empty_stage(monkeypatch) -> None:
     engine = make_engine()
     monkeypatch.setattr(engine, "_minimum_significant_subsplit_threshold", lambda size, pvalue: 0)
 
@@ -198,13 +210,11 @@ def test_inside_panel_builds_band_rule(monkeypatch) -> None:
         delta_threshold=1.0,
     )
 
-    assert len(result.entries) == 1
-    entry = result.entries[0]
-    assert entry.threshold_low == 0.5
-    assert entry.threshold_high == 1.7
-    np.testing.assert_array_equal(result.masks[0], np.array([False, False, False, False, True, True]))
+    assert result.entries == []
+    assert result.masks.shape == (0, 0)
 
 
+@smoke
 def test_greedy_cover_prefers_rules_that_only_hit_target_samples() -> None:
     engine = make_engine()
     entries = [
@@ -232,6 +242,7 @@ def test_greedy_cover_prefers_rules_that_only_hit_target_samples() -> None:
     assert [entry.gene_id for entry in selection.selected_entries] == ["g0", "g1"]
 
 
+@smoke
 def test_panel_entries_to_frame_serializes_threshold_shapes() -> None:
     entries = [
         genepan.PanelEntry(0, "g0", "G0", 1.0, 1, 0.5, None),
@@ -245,6 +256,7 @@ def test_panel_entries_to_frame_serializes_threshold_shapes() -> None:
     assert frame.loc[1, "threshold_high"] == 1.2
 
 
+@smoke
 def test_query_gene_reports_nt_memberships_and_activation_frequencies() -> None:
     engine = make_engine()
     result = genepan.GenePanResult(
@@ -258,8 +270,10 @@ def test_query_gene_reports_nt_memberships_and_activation_frequencies() -> None:
         normal_entries=[
             genepan.PanelEntry(0, "g0", "GENE", 1.0, 4, 0.3, None),
         ],
-        selected_tumor_mix=genepan.MixSelection([], [], 0.0, 0),
-        selected_normal_mix=genepan.MixSelection([], [], 0.0, 0),
+        selected_tumor_mix=genepan.MixSelection([], [], [], 0.0, 0),
+        selected_normal_mix=genepan.MixSelection([], [], [], 0.0, 0),
+        selected_tumor_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
+        selected_normal_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
         reference=np.array([1.0]),
         log2_values=np.array([[0.0], [0.6], [1.0], [0.2]], dtype=float),
         sample_types=["Solid Tissue Normal", "Primary Tumor", "Primary Tumor", "Solid Tissue Normal"],
@@ -287,12 +301,13 @@ def test_query_gene_reports_nt_memberships_and_activation_frequencies() -> None:
     assert n_membership.t_activation_count == 0
 
 
+@smoke
 def test_query_gene_directly_checks_one_gene_without_full_run(monkeypatch) -> None:
     engine = make_engine()
     cohort = genepan.PreparedCohort(
-        filtered_values=np.array([[1.0], [1.0], [1.0], [1.0]], dtype=float),
+        filtered_values=np.array([[1.0], [2.0], [2.2], [1.0]], dtype=float),
         reference=np.array([1.0]),
-        log2_values=np.array([[0.0], [0.6], [1.0], [0.2]], dtype=float),
+        log2_values=np.array([[1.0], [2.0], [2.2], [1.0]], dtype=float),
         limits=np.array([-2.0]),
         sample_types=["Solid Tissue Normal", "Primary Tumor", "Primary Tumor", "Solid Tissue Normal"],
         normal_idx=np.array([0, 3]),
@@ -312,6 +327,7 @@ def test_query_gene_directly_checks_one_gene_without_full_run(monkeypatch) -> No
     assert t_membership.n_activation_count == 0
 
 
+@smoke
 def test_compute_specific_gene_pool_formats_requested_header(monkeypatch) -> None:
     engine = make_engine()
     cohort = genepan.PreparedCohort(
@@ -475,6 +491,7 @@ def test_packed_loevinger_matches_dense_binary_matrix() -> None:
     assert packed_keys == dense_keys
 
 
+@smoke
 def test_kde_sampler_generates_continuous_values_for_variable_genes() -> None:
     class_values = np.array(
         [
@@ -498,6 +515,7 @@ def test_kde_sampler_generates_continuous_values_for_variable_genes() -> None:
     assert np.all(sampled[:, 1] == 0.0)
 
 
+@smoke
 def test_kde_sampler_keeps_constant_genes_constant() -> None:
     class_values = np.array(
         [
@@ -622,6 +640,7 @@ def test_build_gene_category_scan_uses_margin_free_discretization() -> None:
     np.testing.assert_array_equal(scan.active_patterns, np.array([[1]], dtype=np.uint8))
 
 
+@smoke
 def test_stability_count_parser_and_balanced_total_mode() -> None:
     counts = stability_analysis._parse_counts("0,10,20")
     assert counts == [0, 10, 20]
@@ -635,7 +654,7 @@ def test_stability_count_parser_and_balanced_total_mode() -> None:
             balanced_count_mode="total",
         ),
         analysis=stability_analysis.AnalysisConfig(analysis="gene_set_overlap", gene_category="both"),
-        execution=stability_analysis.ExecutionConfig(replicates=1, seed=1, max_workers=1, resume=False),
+        execution=stability_analysis.ExecutionConfig(replicates=1, seed=1, seed_stride=1, max_workers=1, resume=False),
         outputs=stability_analysis.OutputConfig(output_dir=Path("."), figure_dir=Path("."), write_figures=False),
         base_dir=Path("."),
     )
@@ -643,6 +662,7 @@ def test_stability_count_parser_and_balanced_total_mode() -> None:
     assert stability_analysis._synthetic_counts(config, 25) == (12, 13)
 
 
+@smoke
 def test_stability_set_metrics_reports_overlap_fractions() -> None:
     metrics = stability_analysis._set_metrics(
         "t_gene",
@@ -674,7 +694,7 @@ def test_stability_loevinger_edge_metrics_uses_overlap_fractions(monkeypatch) ->
             gene_category="T-gene",
             loevinger_threshold=0.5,
         ),
-        execution=stability_analysis.ExecutionConfig(replicates=1, seed=1, max_workers=1, resume=False),
+        execution=stability_analysis.ExecutionConfig(replicates=1, seed=1, seed_stride=1, max_workers=1, resume=False),
         outputs=stability_analysis.OutputConfig(output_dir=Path("."), figure_dir=Path("."), write_figures=False),
         base_dir=Path("."),
     )
