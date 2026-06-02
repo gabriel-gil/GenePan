@@ -18,7 +18,7 @@ def make_engine() -> genepan.GenePan:
 
 
 @smoke
-def test_default_parameters_match_standard_setup() -> None:
+def test_default_parameters_are_stable() -> None:
     parameters = genepan.GenePanParameters()
 
     assert parameters.interval_margin_fpkm == 0.1
@@ -31,7 +31,7 @@ def test_default_parameters_match_standard_setup() -> None:
 
 
 @smoke
-def test_coverage_thresholds_enforce_minimum_sample_support() -> None:
+def test_thresholds_require_minimum_support() -> None:
     engine = make_engine()
 
     normal_threshold = engine._minimum_significant_support_threshold(class_size=52, sample_size=551, pvalue=0.05)
@@ -44,7 +44,7 @@ def test_coverage_thresholds_enforce_minimum_sample_support() -> None:
 
 
 @smoke
-def test_binomial_split_threshold_is_positive_lower_tail_cutoff() -> None:
+def test_split_threshold_is_positive() -> None:
     engine = make_engine()
 
     threshold = engine._minimum_significant_subsplit_threshold(10, pvalue=0.01)
@@ -84,7 +84,7 @@ def test_preprocessing_excludes_only_double_low_detection_genes() -> None:
 
 
 @smoke
-def test_single_side_up_family_detects_opposite_class_overexpression() -> None:
+def test_above_family_finds_overexpression() -> None:
     engine = make_engine()
     values = np.array(
         [
@@ -117,7 +117,7 @@ def test_single_side_up_family_detects_opposite_class_overexpression() -> None:
 
 
 @smoke
-def test_perfect_panel_can_define_the_complementary_concept() -> None:
+def test_perfect_panel_selects_complementary_gene() -> None:
     engine = make_engine()
     entries = [
         genepan.PanelEntry(0, "g0", "TumorDeregA", 1.0, 1, 0.1, None),
@@ -144,7 +144,7 @@ def test_perfect_panel_can_define_the_complementary_concept() -> None:
 
 
 @smoke
-def test_outside_family_builds_two_sided_rule(monkeypatch) -> None:
+def test_outside_family_finds_both_tails(monkeypatch) -> None:
     engine = make_engine()
     monkeypatch.setattr(engine, "_minimum_significant_subsplit_threshold", lambda size, pvalue: 0)
 
@@ -215,7 +215,7 @@ def test_inside_family_currently_returns_empty_stage(monkeypatch) -> None:
 
 
 @smoke
-def test_greedy_cover_prefers_rules_that_only_hit_target_samples() -> None:
+def test_perfect_panel_avoids_off_target_samples() -> None:
     engine = make_engine()
     entries = [
         genepan.PanelEntry(0, "g0", "G0", 1.0, 1, 0.1, None),
@@ -243,7 +243,7 @@ def test_greedy_cover_prefers_rules_that_only_hit_target_samples() -> None:
 
 
 @smoke
-def test_panel_entries_to_frame_serializes_threshold_shapes() -> None:
+def test_panel_table_keeps_threshold_shapes() -> None:
     entries = [
         genepan.PanelEntry(0, "g0", "G0", 1.0, 1, 0.5, None),
         genepan.PanelEntry(1, "g1", "G1", 2.0, 7, 0.4, 1.2),
@@ -257,7 +257,7 @@ def test_panel_entries_to_frame_serializes_threshold_shapes() -> None:
 
 
 @smoke
-def test_query_gene_reports_nt_memberships_and_activation_frequencies() -> None:
+def test_query_gene_reports_activation_counts() -> None:
     engine = make_engine()
     result = genepan.GenePanResult(
         all_entries=[
@@ -302,7 +302,7 @@ def test_query_gene_reports_nt_memberships_and_activation_frequencies() -> None:
 
 
 @smoke
-def test_query_gene_directly_checks_one_gene_without_full_run(monkeypatch) -> None:
+def test_direct_gene_query_runs_without_full_analysis(monkeypatch) -> None:
     engine = make_engine()
     cohort = genepan.PreparedCohort(
         filtered_values=np.array([[1.0], [2.0], [2.2], [1.0]], dtype=float),
@@ -328,7 +328,7 @@ def test_query_gene_directly_checks_one_gene_without_full_run(monkeypatch) -> No
 
 
 @smoke
-def test_compute_specific_gene_pool_formats_requested_header(monkeypatch) -> None:
+def test_gene_pool_output_has_clear_header(monkeypatch) -> None:
     engine = make_engine()
     cohort = genepan.PreparedCohort(
         filtered_values=np.array([[1.0]], dtype=float),
@@ -492,7 +492,7 @@ def test_packed_loevinger_matches_dense_binary_matrix() -> None:
 
 
 @smoke
-def test_kde_sampler_generates_continuous_values_for_variable_genes() -> None:
+def test_kde_sampler_adds_continuous_variation() -> None:
     class_values = np.array(
         [
             [1.0, 0.0],
@@ -516,7 +516,7 @@ def test_kde_sampler_generates_continuous_values_for_variable_genes() -> None:
 
 
 @smoke
-def test_kde_sampler_keeps_constant_genes_constant() -> None:
+def test_kde_sampler_preserves_constant_genes() -> None:
     class_values = np.array(
         [
             [3.5, 7.0],
@@ -641,7 +641,7 @@ def test_build_gene_category_scan_uses_margin_free_discretization() -> None:
 
 
 @smoke
-def test_stability_count_parser_and_balanced_total_mode() -> None:
+def test_balanced_counts_split_evenly() -> None:
     counts = stability_analysis._parse_counts("0,10,20")
     assert counts == [0, 10, 20]
 
@@ -663,7 +663,7 @@ def test_stability_count_parser_and_balanced_total_mode() -> None:
 
 
 @smoke
-def test_stability_set_metrics_reports_overlap_fractions() -> None:
+def test_set_metrics_report_overlap_fractions() -> None:
     metrics = stability_analysis._set_metrics(
         "t_gene",
         reference={"a", "b", "c"},
