@@ -7,8 +7,30 @@ For a selected cancer cohort, GenePan can:
 - discover T-gene and N-gene pools across above, below, outside, inside, and mixed family modes;
 - construct perfect gene panels with configurable tie-breaking priority;
 - query individual genes or gene sets for family membership, thresholds, and activation counts;
-- export CChains-ready `T_Network/data` and `N_Network/data` folders, including `sample.txt`, `names.csv`, and `nodes.txt`;
+- export CChains-ready `T_Network/data` and `N_Network/data` folders containing `sample.txt` and `names.csv`;
 - run downstream stability analyses under synthetic augmentation or real-sample subsampling.
+
+## Requirements
+
+- Python 3.10 or newer.
+- Python packages: `numpy`, `pandas`, and `matplotlib`.
+- Optional test package: `pytest`.
+- For reading legacy `.xls` sample sheets, install an Excel reader supported by
+  pandas, such as `xlrd`.
+
+## Quick Start
+
+Open PowerShell, set the Python executable and repository paths, then run a
+complete GenePan analysis:
+
+```powershell
+$PY = "C:\Path\To\python.exe"
+$ROOT = "C:\Users\gabri\GenePan"
+$DATA = "$ROOT\TCGA-PRAD"
+Set-Location $ROOT
+
+& $PY "$ROOT\genepan.py" $DATA --output-dir "$ROOT\genepan_output"
+```
 
 ## Documentation
 

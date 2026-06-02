@@ -18,11 +18,29 @@ GenePan is intended to be used in two main ways:
 
 Code authors: Gabriel Gil, Augusto González, and Julio César Drake.
 
-If you use CChains in scientific work, please cite the following manuscript:
+If you use GenePan in scientific work, please cite the following manuscript:
 G. Gil, C. Carricarte, J. C. Drake-Pérez, Y. Perera, A. Gonzalez. Highly
 specific and sensitive gene panels for cancer screening: First application of
 only-normal and only-tumor genes. Tumor Discovery 2025, 4(3), 58-69.
 https://doi.org/10.36922/TD025190035
+
+## Requirements
+
+GenePan requires:
+
+- Python 3.10 or newer.
+- `numpy`
+- `pandas`
+- `matplotlib`
+- an `.xls` reader supported by pandas, such as `xlrd`, when using legacy
+  `sample.xls` files.
+- `pytest`, only if you want to run the test suite.
+
+Install missing Python packages from PowerShell with:
+
+```powershell
+& $PY -m pip install numpy pandas matplotlib xlrd pytest
+```
 
 ## Scientific Pipeline
 
@@ -79,12 +97,21 @@ The current class split is:
 
 ## Standard Command-Line Modes
 
+Step-by-step PowerShell use:
+
+1. Open PowerShell.
+2. Choose the Python executable.
+3. Go to the GenePan repository folder.
+4. Choose the input cancer dataset folder.
+5. Run the desired GenePan command.
+
 Set these paths once in PowerShell:
 
 ```powershell
 $PY = "C:\Users\gabri\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
-$ROOT = "C:\Users\gabri\Documents\Codex\2026-04-28\could-you-reach-a-github-private"
+$ROOT = "C:\Users\gabri\GenePan"
 $DATA = "C:\Users\gabri\GenePan\TCGA-PRAD"
+Set-Location $ROOT
 ```
 
 Run a complete cohort analysis:
@@ -395,6 +422,8 @@ discretization, or output aggregation.
 ## Testing
 
 The test suite uses `pytest` and should be run from the GenePan project root.
+These tests are mainly intended for developers and advanced users who want to
+check that a local installation is working.
 
 If `pytest` is not available in the selected Python environment, install it
 first:
@@ -409,9 +438,26 @@ Then run:
 & $PY -m pytest
 ```
 
-In the bundled runtime used during this validation pass, `pytest` was not
-installed by default, so tests could not be executed until that dependency is
-added.
+The current tests are lightweight software checks. They verify small controlled
+examples, function calls, serialization, and metric formulas. They are not a
+substitute for full scientific validation against a completed cancer-cohort
+analysis.
+
+When the test suite is organized with markers, the recommended commands will
+be:
+
+```powershell
+# Quick functionality checks
+& $PY -m pytest -m smoke_tests
+
+# Structural checks of inputs and exported files
+& $PY -m pytest -m consistency_checks
+
+# Artifact-based comparisons against validated reference outputs
+& $PY -m pytest -m regression_tests
+```
+
+Benchmark runs should be treated separately from correctness tests.
 
 ## Optional Parameter Reference
 

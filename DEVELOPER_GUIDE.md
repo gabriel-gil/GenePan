@@ -13,9 +13,25 @@ Release modules:
 - `stability_analysis.py`
   Downstream stability-analysis runner.
 - `tests/test_genepan.py`
-  Unit and regression tests.
+  Current test suite.
 
 No graphical interface is part of the current release.
+
+## Developer Requirements
+
+Use Python 3.10 or newer with:
+
+- `numpy`
+- `pandas`
+- `matplotlib`
+- `xlrd` for legacy `.xls` sample sheets
+- `pytest` for running the test suite
+
+Install the usual development dependencies from PowerShell with:
+
+```powershell
+& $PY -m pip install numpy pandas matplotlib xlrd pytest
+```
 
 ## Core Engine Internals
 
@@ -179,7 +195,13 @@ For a new cohort source:
 
 Tests live in `tests/test_genepan.py` and use `pytest`.
 
-The suite currently covers:
+Run tests after every source-code change before committing. At minimum, run the
+smoke tests for ordinary code edits. Run consistency checks and regression
+tests whenever input parsing, output writing, binary matrices, gene ordering,
+sample ordering, stability analyses, or numerical thresholds are touched.
+
+The current suite mostly contains lightweight smoke tests and internal
+consistency checks. It covers:
 
 - default parameters
 - threshold calculations
@@ -192,10 +214,46 @@ The suite currently covers:
 - synthetic sampler behavior
 - stability-runner metric formulas and configuration helpers
 
-These are unit and regression tests, not complete external scientific
-validation. Full reference comparisons against published panels,
-CChains-ready matrices, and final stability figures should be handled by
-separate validation analyses.
+Recommended test categories:
+
+- `smoke_tests`
+  Toy examples used to check that functions are callable, dependencies are
+  wired correctly, and the main code paths run. These are programming-facing
+  tests and should be fast.
+- `consistency_checks`
+  Structural checks of inputs and outputs, such as matching row counts between
+  `sample.txt` and `names.csv`, expected sample counts, expected gene-order
+  tables, and CChains export contracts. These checks do not require old
+  validated outputs.
+- `regression_tests`
+  Artifact-based comparisons against previously validated outputs. A test
+  should only be called a regression test if it compares generated output to a
+  committed or explicitly supplied reference artifact within a stated
+  tolerance. Regression tests may be divided into fast and slow subsets.
+- `benchmarks`
+  Timing and performance checks. Benchmarks should report runtime and hardware
+  context when possible. They should not be mixed with correctness tests unless
+  a very broad performance guard is intentionally added.
+
+Suggested commands:
+
+```powershell
+# Install test dependency if needed.
+& $PY -m pip install pytest
+
+# Run all currently available tests.
+& $PY -m pytest
+
+# Once markers are introduced, use focused runs.
+& $PY -m pytest -m smoke_tests
+& $PY -m pytest -m consistency_checks
+& $PY -m pytest -m regression_tests
+```
+
+The repository currently does not include full real-cohort artifact regression
+fixtures for every workflow. Until those fixtures are added, full external
+validation against completed PRAD or multi-cancer outputs must be run as a
+separate validation analysis and documented in the commit or release notes.
 
 ## Validation Invariants
 
