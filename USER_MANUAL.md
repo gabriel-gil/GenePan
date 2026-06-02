@@ -167,9 +167,14 @@ The CChains-ready files are the strictly necessary binary-matrix outputs for
 network construction:
 
 - `T_Network/data/sample.txt`, `T_Network/data/names.csv`
-  Compressed T-gene binary matrix and matching bare Ensembl identifiers.
+  Full T-gene binary matrix and matching bare Ensembl identifiers. Each row is
+  one T-gene, in the same order in both files.
 - `N_Network/data/sample.txt`, `N_Network/data/names.csv`
-  Compressed N-gene binary matrix and matching bare Ensembl identifiers.
+  Full N-gene binary matrix and matching bare Ensembl identifiers. Each row is
+  one N-gene, in the same order in both files.
+
+CChains performs any later compression of identical binary patterns itself.
+GenePan therefore does not collapse rows in the CChains-ready folders.
 
 The remaining matrix files are auxiliary outputs for inspection, validation,
 or alternative downstream use:

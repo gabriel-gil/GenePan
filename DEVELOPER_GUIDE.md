@@ -92,15 +92,16 @@ without updating downstream network construction and validation data.
 - unique-pattern inspection matrices
 - CChains-ready `T_Network/data` and `N_Network/data` folders
 
-The CChains-ready folders must contain compressed unique-pattern matrices:
+The CChains-ready folders must contain full gene-level matrices:
 
 - `sample.txt`
-  Unique binary-pattern rows.
+  One binary row per T-gene or N-gene, without collapsing identical patterns.
 - `names.csv`
   Bare Ensembl identifiers in exactly the same row order as `sample.txt`.
 
-The PRAD CChains-ready exports have been checked against
-`C:\Repositories\GDNs\data\PRAD` after trailing whitespace normalization.
+CChains handles compression of identical binary patterns into block nodes
+itself. GenePan may still write unique-pattern inspection files, but those are
+not the CChains input contract.
 
 ## Stability Runner Internals
 

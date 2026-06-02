@@ -2181,7 +2181,7 @@ def write_outputs(result: GenePanResult, output_dir: str | Path) -> None:
 
 
 def _write_gene_category_sample_matrices(result: GenePanResult, output: Path) -> None:
-    """Write CChains-style binary matrices for merged T- and N-gene scans."""
+    """Write gene-level binary matrices for merged T- and N-gene scans."""
 
     assert result.t_gene_scan is not None
     assert result.n_gene_scan is not None
@@ -2201,13 +2201,13 @@ def _write_gene_category_sample_matrices(result: GenePanResult, output: Path) ->
     _write_name_csv(output / "namesN_unique_patterns.csv", [result.n_gene_scan.gene_names[index] for index in n_unique_source_rows])
     _write_cchains_data_bundle(
         output / "T_Network" / "data",
-        t_unique,
-        [result.t_gene_scan.gene_ids[index].split(".", 1)[0] for index in t_unique_source_rows],
+        t_matrix,
+        [gene_id.split(".", 1)[0] for gene_id in result.t_gene_scan.gene_ids],
     )
     _write_cchains_data_bundle(
         output / "N_Network" / "data",
-        n_unique,
-        [result.n_gene_scan.gene_ids[index].split(".", 1)[0] for index in n_unique_source_rows],
+        n_matrix,
+        [gene_id.split(".", 1)[0] for gene_id in result.n_gene_scan.gene_ids],
     )
 
     _write_gene_scan_order(output / "T_gene_order.tsv", result.t_gene_scan, t_matrix)

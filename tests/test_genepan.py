@@ -343,6 +343,50 @@ def test_compute_specific_gene_pool_formats_requested_header(monkeypatch) -> Non
     assert genepan._format_gene_set_output(gene_set) == "1-gene T-gene pool (Only-T-above)\nGENE"
 
 
+def test_cchains_export_uses_full_gene_level_matrices(tmp_path: Path) -> None:
+    result = genepan.GenePanResult(
+        all_entries=[],
+        tumor_entries=[],
+        normal_entries=[],
+        selected_tumor_mix=genepan.MixSelection([], [], [], 0.0, 0),
+        selected_normal_mix=genepan.MixSelection([], [], [], 0.0, 0),
+        selected_tumor_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
+        selected_normal_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
+        reference=np.array([], dtype=float),
+        log2_values=np.zeros((0, 0), dtype=float),
+        sample_types=[],
+        gene_ids=[],
+        gene_names=[],
+        parameters=genepan.GenePanParameters(),
+        t_gene_scan=genepan.GeneCategoryScan(
+            gene_category="T-gene",
+            gene_ids=["ENSGT000001.1", "ENSGT000002.1"],
+            gene_names=["TG1", "TG2"],
+            active_patterns=np.array([[1, 0], [0, 1]], dtype=np.uint8),
+            binary_patterns=np.array([[1, 0], [0, 1]], dtype=np.uint8),
+        ),
+        n_gene_scan=genepan.GeneCategoryScan(
+            gene_category="N-gene",
+            gene_ids=["ENSGN000001.1", "ENSGN000002.1", "ENSGN000003.1"],
+            gene_names=["NG1", "NG2", "NG3"],
+            active_patterns=np.array([[1, 0], [1, 0], [0, 1]], dtype=np.uint8),
+            binary_patterns=np.array([[0, 1], [0, 1], [1, 0]], dtype=np.uint8),
+        ),
+    )
+
+    genepan._write_gene_category_sample_matrices(result, tmp_path)
+
+    t_sample = np.loadtxt(tmp_path / "T_Network" / "data" / "sample.txt", dtype=np.uint8)
+    n_sample = np.loadtxt(tmp_path / "N_Network" / "data" / "sample.txt", dtype=np.uint8)
+    t_names = (tmp_path / "T_Network" / "data" / "names.csv").read_text(encoding="utf-8").splitlines()
+    n_names = (tmp_path / "N_Network" / "data" / "names.csv").read_text(encoding="utf-8").splitlines()
+
+    np.testing.assert_array_equal(t_sample, result.t_gene_scan.binary_patterns)
+    np.testing.assert_array_equal(n_sample, result.n_gene_scan.binary_patterns)
+    assert t_names == ["ENSGT000001", "ENSGT000002"]
+    assert n_names == ["ENSGN000001", "ENSGN000002", "ENSGN000003"]
+
+
 def test_prepare_analysis_cohort_reuses_in_memory_cache(monkeypatch) -> None:
     engine = make_engine()
     cache_dir = Path("tests") / "cache_runtime_in_memory"
