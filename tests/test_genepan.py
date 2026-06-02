@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 from pathlib import Path
-import shutil
 
 import pytest
 
@@ -11,6 +10,7 @@ import stability_analysis
 
 
 smoke = pytest.mark.smoke_tests
+consistency = pytest.mark.consistency_checks
 
 
 def make_engine() -> genepan.GenePan:
@@ -53,6 +53,7 @@ def test_split_threshold_is_positive() -> None:
     assert threshold <= 10
 
 
+@consistency
 def test_preprocessing_excludes_only_double_low_detection_genes() -> None:
     engine = make_engine()
     engine.parameters = genepan.GenePanParameters(
@@ -180,6 +181,7 @@ def test_outside_family_finds_both_tails(monkeypatch) -> None:
     np.testing.assert_array_equal(result.masks[0], np.array([False, False, False, False, True, True]))
 
 
+@consistency
 def test_inside_family_currently_returns_empty_stage(monkeypatch) -> None:
     engine = make_engine()
     monkeypatch.setattr(engine, "_minimum_significant_subsplit_threshold", lambda size, pvalue: 0)
@@ -359,7 +361,8 @@ def test_gene_pool_output_has_clear_header(monkeypatch) -> None:
     assert genepan._format_gene_set_output(gene_set) == "1-gene T-gene pool (Only-T-above)\nGENE"
 
 
-def test_cchains_export_uses_full_gene_level_matrices(tmp_path: Path) -> None:
+@consistency
+def test_cchains_export_preserves_gene_level_rows(tmp_path: Path) -> None:
     result = genepan.GenePanResult(
         all_entries=[],
         tumor_entries=[],
@@ -399,15 +402,18 @@ def test_cchains_export_uses_full_gene_level_matrices(tmp_path: Path) -> None:
 
     np.testing.assert_array_equal(t_sample, result.t_gene_scan.binary_patterns)
     np.testing.assert_array_equal(n_sample, result.n_gene_scan.binary_patterns)
+    assert t_sample.shape[0] == len(t_names)
+    assert n_sample.shape[0] == len(n_names)
     assert t_names == ["ENSGT000001", "ENSGT000002"]
     assert n_names == ["ENSGN000001", "ENSGN000002", "ENSGN000003"]
+    assert n_sample.shape[0] == 3
+    np.testing.assert_array_equal(n_sample[0], n_sample[1])
 
 
-def test_prepare_analysis_cohort_reuses_in_memory_cache(monkeypatch) -> None:
+@consistency
+def test_prepared_cohort_reuses_in_memory_cache(monkeypatch, tmp_path: Path) -> None:
     engine = make_engine()
-    cache_dir = Path("tests") / "cache_runtime_in_memory"
-    shutil.rmtree(cache_dir, ignore_errors=True)
-    engine.cache_dir = cache_dir
+    engine.cache_dir = tmp_path / "cache_runtime_in_memory"
     cohort = genepan.PreparedCohort(
         filtered_values=np.array([[1.0]], dtype=float),
         reference=np.array([1.0]),
@@ -437,10 +443,10 @@ def test_prepare_analysis_cohort_reuses_in_memory_cache(monkeypatch) -> None:
     assert first is second
 
 
-def test_prepare_analysis_cohort_loads_binary_cache(monkeypatch) -> None:
+@consistency
+def test_prepared_cohort_loads_binary_cache(monkeypatch, tmp_path: Path) -> None:
     engine_writer = make_engine()
-    cache_dir = Path("tests") / "cache_runtime_disk"
-    shutil.rmtree(cache_dir, ignore_errors=True)
+    cache_dir = tmp_path / "cache_runtime_disk"
     engine_writer.cache_dir = cache_dir
     cohort = genepan.PreparedCohort(
         filtered_values=np.array([[1.0, 2.0]], dtype=float),
@@ -474,7 +480,8 @@ def test_prepare_analysis_cohort_loads_binary_cache(monkeypatch) -> None:
     np.testing.assert_allclose(loaded.log2_values, cohort.log2_values)
 
 
-def test_packed_loevinger_matches_dense_binary_matrix() -> None:
+@consistency
+def test_packed_loevinger_matches_dense_matrix() -> None:
     active_patterns = np.array(
         [
             [1, 0, 1, 1, 0, 0, 1, 0],
@@ -537,7 +544,8 @@ def test_kde_sampler_preserves_constant_genes() -> None:
     np.testing.assert_allclose(sampled[:, 1], 7.0)
 
 
-def test_fast_family_stage_matches_exact_builder_on_toy_cohort() -> None:
+@consistency
+def test_fast_family_stage_matches_exact_builder() -> None:
     engine = make_engine()
     cohort = genepan.PreparedCohort(
         filtered_values=np.array(
@@ -587,7 +595,8 @@ def test_fast_family_stage_matches_exact_builder_on_toy_cohort() -> None:
         np.testing.assert_array_equal(fast.masks, exact.masks)
 
 
-def test_build_gene_category_scan_uses_margin_free_discretization() -> None:
+@consistency
+def test_gene_category_scan_uses_margin_free_discretization() -> None:
     engine = make_engine()
     cohort = genepan.PreparedCohort(
         filtered_values=np.array(
@@ -678,12 +687,14 @@ def test_set_metrics_report_overlap_fractions() -> None:
     assert metrics["t_gene_jaccard"] == 2 / 4
 
 
-def test_stability_loevinger_edge_metrics_uses_overlap_fractions(monkeypatch) -> None:
+@consistency
+def test_stability_edges_use_overlap_fractions(monkeypatch) -> None:
     context = type(
         "Context",
         (),
         {
             "reference_edge_sets": {"T-gene": {1, 2, 3}},
+            "global_gene_index": {"g0": 0, "g1": 1, "g2": 2},
             "engine": type("Engine", (), {"build_gene_category_scan": lambda self, cohort, gene_category: "scan"})(),
         },
     )()

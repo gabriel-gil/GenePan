@@ -247,8 +247,10 @@ Suggested commands:
 # Run the smoke-test layer after ordinary source edits.
 & $PY -m pytest -m smoke_tests
 
-# These marker names are reserved for the next testing layers.
+# Run structural contract checks before committing output or cache changes.
 & $PY -m pytest -m consistency_checks
+
+# This marker name is reserved for artifact-based tests.
 & $PY -m pytest -m regression_tests
 ```
 
