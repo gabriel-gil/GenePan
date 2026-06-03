@@ -66,6 +66,10 @@ def fixture_path(*parts: str) -> Path:
     return Path(__file__).parent / "fixtures" / "regression_fast" / Path(*parts)
 
 
+def slow_fixture_path(*parts: str) -> Path:
+    return Path(__file__).parent / "fixtures" / "regression_slow" / Path(*parts)
+
+
 def local_prad_reference_dir() -> Path:
     return Path(
         os.environ.get(
@@ -77,6 +81,25 @@ def local_prad_reference_dir() -> Path:
 
 def local_prad_data_dir() -> Path:
     return Path(os.environ.get("GENEPAN_PRAD_DATA_DIR", r"C:\Users\gabri\GenePan\TCGA-PRAD"))
+
+
+REFERENCE_GENE_NAME_ALIASES = {
+    "ENSG00000185432": "TMT1A",
+}
+
+
+def reference_panel_frame(selection: genepan.MixSelection, *, frequency_order: bool) -> pd.DataFrame:
+    if frequency_order:
+        frame = genepan.panel_selection_frequency_order_frame(selection)
+    else:
+        frame = genepan.panel_selection_to_frame(selection)
+    frame = frame.copy()
+    frame["gene_id_base"] = frame["gene_id"].astype(str).str.replace(r"\.[0-9]+$", "", regex=True)
+    frame["reference_gene_name"] = [
+        REFERENCE_GENE_NAME_ALIASES.get(gene_id, gene_name)
+        for gene_id, gene_name in zip(frame["gene_id_base"], frame["gene_name"].astype(str))
+    ]
+    return frame.loc[:, ["gene_id_base", "reference_gene_name", "panel_family_name", "target_activation_count"]]
 
 
 @smoke
@@ -482,6 +505,43 @@ def test_slow_regression_prad_cchains_export_matches_validated_artifacts(tmp_pat
         order = pd.read_csv(reference_dir / f"{prefix}_gene_order.tsv", sep="\t")
         expected_names = order["gene_id_base"].astype(str).tolist()
         assert exported_names == expected_names
+
+
+@regression
+@regression_slow
+@pytest.mark.parametrize(
+    ("family_name", "frequency_order", "compare_order"),
+    [
+        ("Only-T-above", True, True),
+        ("All-N", False, False),
+    ],
+)
+def test_slow_regression_prad_reference_panels_match_validated_outputs(
+    family_name: str,
+    frequency_order: bool,
+    compare_order: bool,
+) -> None:
+    data_dir = local_prad_data_dir()
+    fixture = slow_fixture_path("prad_panels", f"{family_name}.tsv")
+    required_paths = [data_dir / "sample.xls", fixture]
+    missing = [str(path) for path in required_paths if not path.exists()]
+    if missing:
+        pytest.skip("Local PRAD data/panel fixture is unavailable: " + "; ".join(missing))
+
+    _, selection = genepan.GenePan(data_dir).compute_panel_selection(family_name)
+    actual = reference_panel_frame(selection, frequency_order=frequency_order)
+    expected = pd.read_csv(fixture, sep="\t")
+
+    assert selection.covered_fraction == 1.0
+    if compare_order:
+        pd.testing.assert_frame_equal(actual.reset_index(drop=True), expected, check_dtype=False)
+    else:
+        sort_columns = ["gene_id_base", "panel_family_name", "target_activation_count"]
+        pd.testing.assert_frame_equal(
+            actual.sort_values(sort_columns).reset_index(drop=True),
+            expected.sort_values(sort_columns).reset_index(drop=True),
+            check_dtype=False,
+        )
 
 
 @consistency
