@@ -74,7 +74,7 @@ def local_prad_reference_dir() -> Path:
     return Path(
         os.environ.get(
             "GENEPAN_PRAD_REFERENCE_DIR",
-            r"C:\Users\gabri\Documents\Codex\2026-04-28\could-you-reach-a-github-private\correct_tcga_sample_matrices\PRAD",
+            slow_fixture_path("prad_matrices"),
         )
     )
 
