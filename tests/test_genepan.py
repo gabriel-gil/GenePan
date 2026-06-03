@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import numpy as np
 from pathlib import Path
 
@@ -11,10 +12,55 @@ import stability_analysis
 
 smoke = pytest.mark.smoke_tests
 consistency = pytest.mark.consistency_checks
+regression = pytest.mark.regression_tests
+regression_fast = pytest.mark.regression_fast
 
 
 def make_engine() -> genepan.GenePan:
     return genepan.GenePan(".")
+
+
+def make_toy_result() -> genepan.GenePanResult:
+    return genepan.GenePanResult(
+        all_entries=[
+            genepan.PanelEntry(0, "g0", "GENE", 1.0, 1, 0.5, None),
+            genepan.PanelEntry(0, "g0", "GENE", 1.0, 4, 0.3, None),
+        ],
+        tumor_entries=[
+            genepan.PanelEntry(0, "g0", "GENE", 1.0, 1, 0.5, None),
+        ],
+        normal_entries=[
+            genepan.PanelEntry(0, "g0", "GENE", 1.0, 4, 0.3, None),
+        ],
+        selected_tumor_mix=genepan.MixSelection([], [], [], 0.0, 0),
+        selected_normal_mix=genepan.MixSelection([], [], [], 0.0, 0),
+        selected_tumor_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
+        selected_normal_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
+        reference=np.array([1.0]),
+        log2_values=np.array([[0.0], [0.6], [1.0], [0.2]], dtype=float),
+        sample_types=["Solid Tissue Normal", "Primary Tumor", "Primary Tumor", "Solid Tissue Normal"],
+        gene_ids=["g0"],
+        gene_names=["GENE"],
+        parameters=genepan.GenePanParameters(low_fpkm=0.1),
+        t_gene_scan=genepan.GeneCategoryScan(
+            gene_category="T-gene",
+            gene_ids=["ENSGT000001.1", "ENSGT000002.1"],
+            gene_names=["TG1", "TG2"],
+            active_patterns=np.array([[1, 0], [0, 1]], dtype=np.uint8),
+            binary_patterns=np.array([[1, 0], [0, 1]], dtype=np.uint8),
+        ),
+        n_gene_scan=genepan.GeneCategoryScan(
+            gene_category="N-gene",
+            gene_ids=["ENSGN000001.1", "ENSGN000002.1", "ENSGN000003.1"],
+            gene_names=["NG1", "NG2", "NG3"],
+            active_patterns=np.array([[1, 0], [1, 0], [0, 1]], dtype=np.uint8),
+            binary_patterns=np.array([[0, 1], [0, 1], [1, 0]], dtype=np.uint8),
+        ),
+    )
+
+
+def fixture_path(*parts: str) -> Path:
+    return Path(__file__).parent / "fixtures" / "regression_fast" / Path(*parts)
 
 
 @smoke
@@ -71,7 +117,7 @@ def test_preprocessing_excludes_only_double_low_detection_genes() -> None:
         dtype=float,
     )
 
-    filtered_values, kept_ids, kept_names = engine._apply_manuscript_preprocessing_constraints(
+    filtered_values, kept_ids, kept_names = engine._apply_preprocessing_constraints(
         raw_values,
         ["normal_only", "tumor_only", "double_low"],
         ["NormalOnly", "TumorOnly", "DoubleLow"],
@@ -261,28 +307,7 @@ def test_panel_table_keeps_threshold_shapes() -> None:
 @smoke
 def test_query_gene_reports_activation_counts() -> None:
     engine = make_engine()
-    result = genepan.GenePanResult(
-        all_entries=[
-            genepan.PanelEntry(0, "g0", "GENE", 1.0, 1, 0.5, None),
-            genepan.PanelEntry(0, "g0", "GENE", 1.0, 4, 0.3, None),
-        ],
-        tumor_entries=[
-            genepan.PanelEntry(0, "g0", "GENE", 1.0, 1, 0.5, None),
-        ],
-        normal_entries=[
-            genepan.PanelEntry(0, "g0", "GENE", 1.0, 4, 0.3, None),
-        ],
-        selected_tumor_mix=genepan.MixSelection([], [], [], 0.0, 0),
-        selected_normal_mix=genepan.MixSelection([], [], [], 0.0, 0),
-        selected_tumor_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
-        selected_normal_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
-        reference=np.array([1.0]),
-        log2_values=np.array([[0.0], [0.6], [1.0], [0.2]], dtype=float),
-        sample_types=["Solid Tissue Normal", "Primary Tumor", "Primary Tumor", "Solid Tissue Normal"],
-        gene_ids=["g0"],
-        gene_names=["GENE"],
-        parameters=genepan.GenePanParameters(low_fpkm=0.1),
-    )
+    result = make_toy_result()
 
     query = engine.query_gene(result, "GENE")
 
@@ -363,35 +388,7 @@ def test_gene_pool_output_has_clear_header(monkeypatch) -> None:
 
 @consistency
 def test_cchains_export_preserves_gene_level_rows(tmp_path: Path) -> None:
-    result = genepan.GenePanResult(
-        all_entries=[],
-        tumor_entries=[],
-        normal_entries=[],
-        selected_tumor_mix=genepan.MixSelection([], [], [], 0.0, 0),
-        selected_normal_mix=genepan.MixSelection([], [], [], 0.0, 0),
-        selected_tumor_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
-        selected_normal_mix_most_redundant_then_first=genepan.MixSelection([], [], [], 0.0, 0),
-        reference=np.array([], dtype=float),
-        log2_values=np.zeros((0, 0), dtype=float),
-        sample_types=[],
-        gene_ids=[],
-        gene_names=[],
-        parameters=genepan.GenePanParameters(),
-        t_gene_scan=genepan.GeneCategoryScan(
-            gene_category="T-gene",
-            gene_ids=["ENSGT000001.1", "ENSGT000002.1"],
-            gene_names=["TG1", "TG2"],
-            active_patterns=np.array([[1, 0], [0, 1]], dtype=np.uint8),
-            binary_patterns=np.array([[1, 0], [0, 1]], dtype=np.uint8),
-        ),
-        n_gene_scan=genepan.GeneCategoryScan(
-            gene_category="N-gene",
-            gene_ids=["ENSGN000001.1", "ENSGN000002.1", "ENSGN000003.1"],
-            gene_names=["NG1", "NG2", "NG3"],
-            active_patterns=np.array([[1, 0], [1, 0], [0, 1]], dtype=np.uint8),
-            binary_patterns=np.array([[0, 1], [0, 1], [1, 0]], dtype=np.uint8),
-        ),
-    )
+    result = make_toy_result()
 
     genepan._write_gene_category_sample_matrices(result, tmp_path)
 
@@ -408,6 +405,34 @@ def test_cchains_export_preserves_gene_level_rows(tmp_path: Path) -> None:
     assert n_names == ["ENSGN000001", "ENSGN000002", "ENSGN000003"]
     assert n_sample.shape[0] == 3
     np.testing.assert_array_equal(n_sample[0], n_sample[1])
+
+
+@regression
+@regression_fast
+def test_fast_regression_cchains_export_matches_fixture(tmp_path: Path) -> None:
+    result = make_toy_result()
+
+    genepan._write_gene_category_sample_matrices(result, tmp_path)
+
+    for relative_path in [
+        "T_Network/data/sample.txt",
+        "T_Network/data/names.csv",
+        "N_Network/data/sample.txt",
+        "N_Network/data/names.csv",
+    ]:
+        actual = (tmp_path / relative_path).read_text(encoding="utf-8")
+        expected = fixture_path("cchains_export", relative_path).read_text(encoding="utf-8")
+        assert actual == expected
+
+
+@regression
+@regression_fast
+def test_fast_regression_gene_query_matches_fixture() -> None:
+    query = make_engine().query_gene(make_toy_result(), "GENE")
+    actual = genepan._gene_query_to_json_dict(query)
+    expected = json.loads(fixture_path("gene_query_GENE.json").read_text(encoding="utf-8"))
+
+    assert actual == expected
 
 
 @consistency

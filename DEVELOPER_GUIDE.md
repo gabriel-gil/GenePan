@@ -250,7 +250,10 @@ Suggested commands:
 # Run structural contract checks before committing output or cache changes.
 & $PY -m pytest -m consistency_checks
 
-# This marker name is reserved for artifact-based tests.
+# Run small artifact-based checks during routine development.
+& $PY -m pytest -m regression_fast
+
+# Run all artifact-based checks.
 & $PY -m pytest -m regression_tests
 ```
 

@@ -1,16 +1,16 @@
-﻿"""GenePan translated from Mathematica into a documented Python workflow.
+"""GenePan cancer gene-panel discovery workflow.
 
-This module keeps the scientific logic from the original notebook, but wraps it
-in a structure that is easier to read, test, and extend:
+This module implements the GenePan workflow in a structure that is easier to
+read, test, and extend:
 
 1. `GenePan` loads the TCGA-style data set.
-2. It rebuilds the eight panel families from the notebook.
+2. It evaluates the eight T-gene and N-gene family modes.
 3. It computes the merged T-gene and N-gene gene pools.
 4. It applies greedy perfect-panel selection.
 
 The code intentionally favors explicit variable names and step-by-step helpers
-over dense one-liners so that colleagues coming from Mathematica, biology, or
-other non-Python backgrounds can follow the translation comfortably.
+over dense one-liners so that colleagues from biology, mathematics, or
+software backgrounds can follow the workflow comfortably.
 """
 
 from __future__ import annotations
@@ -63,13 +63,6 @@ class PanelEntry:
         }
         return mapping[self.panel_code]
 
-    @property
-    def notebook_panel_name(self) -> str:
-        """Return the internal family-code identifier."""
-
-        return f"panel{self.panel_code}"
-
-
 @dataclass(frozen=True)
 class StageResult:
     """Output of one panel-building stage.
@@ -87,9 +80,8 @@ class StageResult:
 class MixSelection:
     """Greedy perfect panel extracted from a broader gene pool.
 
-    In the language of the manuscript, this is the Python counterpart of a
-    minimal perfect-panel construction obtained through a formal-concept
-    reduct-like procedure.
+    This stores the selected rules in greedy addition order together with the
+    number of newly covered target samples contributed at each step.
     """
 
     selected_positions: list[int]
@@ -140,9 +132,8 @@ class GenePanResult:
 class PreparedCohort:
     """Prepared cohort state shared by direct queries and full runs.
 
-    `log2_values` is kept as a legacy field name for compatibility with the
-    older Python translation and its tests. In the current notebook-faithful
-    raw-expression workflow it simply carries the same raw analysis matrix as
+    `log2_values` is retained as a compatibility field name. In the current
+    raw-expression workflow it carries the same analysis matrix as
     `filtered_values`.
     """
 
@@ -165,8 +156,7 @@ class GeneQueryMembership:
 
     gene_category: str
     panel_family_name: str
-    notebook_panel_name: str
-    notebook_panel_code: int
+    panel_family_code: int
     threshold_kind: str
     threshold_low: float
     threshold_high: float | None
@@ -322,8 +312,8 @@ class GenePan:
         cohort = self._prepare_analysis_cohort()
         stages = self._build_all_family_stages(cohort)
 
-        # Panels 1-4 correspond to one-sided dysregulation patterns in the
-        # manuscript: "only-x-above" and "only-x-below".
+        # Family codes 1-4 correspond to one-sided dysregulation patterns:
+        # "only-x-above" and "only-x-below".
         #
         # The concept class defines the baseline interval.  The rough class is
         # the class that is allowed to cross that boundary and therefore gives
@@ -345,13 +335,8 @@ class GenePan:
         t_gene_scan = self.build_gene_category_scan(cohort=cohort, gene_category="T-gene", stages=stages)
         n_gene_scan = self.build_gene_category_scan(cohort=cohort, gene_category="N-gene", stages=stages)
 
-        # Keep the broader software inventory of all T-gene-derived and
-        # N-gene-derived gene pools, even though the current manuscript
-        # emphasizes only a subset of them in the main text.
-        #
-        # The notebook's explicit perfect-panel block works directly on regT
-        # rows across tumor samples. The N-gene side is dual: regN rows across
-        # normal samples.
+        # Perfect T-gene panels cover tumor samples. Perfect N-gene panels use
+        # the dual construction and cover normal samples.
         selected_tumor_mix = self._construct_formal_concept_reduct(
             entries=tumor_mix_entries,
             masks=tumor_mix_masks,
@@ -422,11 +407,9 @@ class GenePan:
     def _compute_prepared_analysis_cohort(self) -> PreparedCohort:
         """Compute the prepared cohort from the raw cohort files.
 
-        The current identification of T-gene and N-gene families follows the
-        raw-expression logic seen in the notebook, not the older log-fold path
-        from the first Python translation. We therefore keep the manuscript's
-        optional detection-floor and support filters, but the matrix that
-        enters family discovery remains on the raw FPKM scale.
+        T-gene and N-gene families are identified on the raw FPKM expression
+        scale. Optional detection-floor and support filters can remove genes
+        before family discovery when enabled by the user.
         """
 
         raw_values, gene_ids, gene_names, sample_types = self._load_tcga_expression_cohort()
@@ -453,7 +436,7 @@ class GenePan:
         """
 
         normal_idx, tumor_idx = self._split_samples(sample_types)
-        filtered_values, kept_gene_ids, kept_gene_names = self._apply_manuscript_preprocessing_constraints(
+        filtered_values, kept_gene_ids, kept_gene_names = self._apply_preprocessing_constraints(
             raw_values,
             gene_ids,
             gene_names,
@@ -565,15 +548,11 @@ class GenePan:
             return
 
     def _build_all_family_stages(self, cohort: PreparedCohort) -> dict[int, StageResult]:
-        """Compute the notebook families from one prepared cohort.
+        """Compute all family stages from one prepared cohort.
 
-        The current classification path follows `carcinogenesis.nb` for
-        T-gene and N-gene discovery:
-
-        - one-sided families use raw-expression margins of `Â± 0.1`
+        - one-sided families use raw-expression margins
         - outside families mean both tails pass simultaneously
-        - inside families are not part of that notebook's classification
-          stage, so they are empty here
+        - inside families are currently reserved and return empty stages
         """
 
         return {panel_code: self._build_family_stage(cohort=cohort, panel_code=panel_code) for panel_code in range(1, 9)}
@@ -581,9 +560,8 @@ class GenePan:
     def _load_tcga_expression_cohort(self) -> tuple[np.ndarray, list[str], list[str], list[str]]:
         """Load all expression files and translate gene identifiers.
 
-        The original notebook imported every sample independently and appended
-        the second column into a giant list.  Here we preallocate a dense NumPy
-        matrix once and fill it row by row, which is much faster and clearer.
+        The implementation preallocates a dense NumPy matrix once and fills it
+        row by row, keeping sample and gene order explicit.
         """
 
         sample_sheet = self._read_sample_sheet(self.base_dir / "sample.xls")
@@ -796,7 +774,7 @@ class GenePan:
 
     @staticmethod
     def _panel_codes_for_gene_category(gene_category: str) -> list[int]:
-        """Return the notebook family codes belonging to one broader category."""
+        """Return the family codes belonging to one broader category."""
 
         if gene_category == "T-gene":
             return [1, 3, 5, 7]
@@ -919,7 +897,7 @@ class GenePan:
     ) -> PCASyntheticProfileSampler:
         """Prepare a low-rank PCA-Gaussian sampler for one class matrix.
 
-        Mathematical model:
+        Model:
 
         - X in R^{n x p} is the class-specific expression matrix.
         - r in R^p is the fixed normal reference profile.
@@ -969,7 +947,7 @@ class GenePan:
             latent_dim=latent_dim,
         )
 
-    def _apply_manuscript_preprocessing_constraints(
+    def _apply_preprocessing_constraints(
         self,
         raw_values: np.ndarray,
         gene_ids: list[str],
@@ -978,16 +956,14 @@ class GenePan:
         normal_idx: np.ndarray,
         tumor_idx: np.ndarray,
     ) -> tuple[np.ndarray, list[str], list[str]]:
-        """Apply the manuscript-inspired preprocessing defaults.
-
-        The paper introduces stronger default constraints than the old notebook:
+        """Apply optional expression-detection preprocessing constraints.
 
         1. Expression values below a small detection floor are treated as zero.
         2. Genes detected below both the normal and tumor support cutoffs are
            removed from the analysis.
 
-        We keep those as defaults while preserving user control through the
-        parameter model.
+        With release defaults, the support cutoffs are zero, so this step does
+        not remove genes unless the user enables stricter preprocessing.
         """
 
         floored = raw_values.copy()
@@ -1087,9 +1063,8 @@ try {{
     def _split_samples(self, sample_types: list[str]) -> tuple[np.ndarray, np.ndarray]:
         """Return zero-based normal and tumor sample indices."""
 
-        # The notebook uses a binary distinction only:
-        # `Solid Tissue Normal` versus everything else.
-        # That means metastatic samples belong to the tumor side as well.
+        # GenePan uses a binary cohort split: `Solid Tissue Normal` versus
+        # everything else. Metastatic samples therefore belong to the tumor side.
         return self._split_sample_types_static(sample_types)
 
     @staticmethod
@@ -1103,7 +1078,7 @@ try {{
         return normal_idx, tumor_idx
 
     def _panel_family_name(self, panel_code: int) -> str:
-        """Return the paper-facing family label for one notebook panel code."""
+        """Return the family label for one numeric family code."""
 
         return {
             1: "Only-T-above",
@@ -1117,7 +1092,7 @@ try {{
         }[panel_code]
 
     def _panel_code_from_family_name(self, family_name: str) -> int:
-        """Translate a paper-facing family label back to the notebook code."""
+        """Translate a family label back to its numeric code."""
 
         mapping = {self._panel_family_name(panel_code): panel_code for panel_code in range(1, 9)}
         try:
@@ -1143,7 +1118,7 @@ try {{
         )
 
     def _build_family_stage_fast(self, *, cohort: PreparedCohort, panel_code: int) -> StageResult:
-        """Fast whole-cohort family builder for the current carcinogenesis rules.
+        """Fast whole-cohort family builder for the current discovery rules.
 
         The optimized path uses a nested strategy:
 
@@ -1350,7 +1325,7 @@ try {{
                 panel_code=8,
                 delta_threshold=self.parameters.delta_threshold_normal,
             )
-        raise RuntimeError(f"Unsupported notebook panel code: {panel_code}")
+        raise RuntimeError(f"Unsupported family code: {panel_code}")
 
     def _discover_one_sided_dysregulation_panel(
         self,
@@ -1366,17 +1341,16 @@ try {{
         panel_code: int,
         direction: str,
     ) -> StageResult:
-        """Build panels 1-4 from the notebook.
+        """Build one-sided above/below family stages.
 
         The `concept_idx` samples define the baseline interval.  The
         `rough_idx` samples are the ones tested for dysregulation outside that
         interval, so the rough class determines whether the resulting gene pool
         is T-oriented or N-oriented.
 
-        `direction="up"` reproduces the `ta` / `na` rule from
-        `carcinogenesis.nb`.
-        `direction="down"` reproduces the `tb` / `nb` rule from
-        `carcinogenesis.nb`.
+        `direction="up"` detects rough-class values above the concept-class
+        maximum. `direction="down"` detects rough-class values below the
+        concept-class minimum.
         """
 
         entries: list[PanelEntry] = []
@@ -1432,10 +1406,9 @@ try {{
     ) -> StageResult:
         """Build panels 5-6.
 
-        These panels reproduce the `to` / `no` logic from
-        `carcinogenesis.nb`: both the lower and upper opposite-class tails
-        must individually exceed the required class fraction beyond a raw
-        margin of `Â± 0.1` around the concept range.
+        Both the lower and upper opposite-class tails must individually exceed
+        the required class fraction beyond a raw margin around the concept
+        range.
         """
 
         entries: list[PanelEntry] = []
@@ -1486,19 +1459,17 @@ try {{
         panel_code: int,
         delta_threshold: float,
     ) -> StageResult:
-        """Build panels 7-8.
+        """Return the currently reserved inside-family stage.
 
-        `carcinogenesis.nb` does not use an inside family during its
-        T-gene / N-gene classification stage. We therefore return an empty
-        stage here to keep the public family inventory stable while making the
-        classification logic notebook-faithful.
+        Inside-family labels are part of the public family inventory, but the
+        current release does not classify genes into these stages.
         """
 
         del values, limits, concept_idx, rough_idx, threshold_count, gene_ids, gene_names, reference, panel_code, delta_threshold
         return StageResult(entries=[], masks=np.zeros((0, 0), dtype=bool))
 
     def _final_activation_masks_for_entries(self, *, cohort: PreparedCohort, entries: list[PanelEntry]) -> np.ndarray:
-        """Build notebook-style final activation masks for accepted entries."""
+        """Build final activation masks for accepted entries."""
 
         return self._final_activation_masks_from_values(values=cohort.filtered_values, entries=entries)
 
@@ -1555,8 +1526,7 @@ try {{
                 GeneQueryMembership(
                     gene_category=gene_category,
                     panel_family_name=entry.panel_family_name,
-                    notebook_panel_name=entry.notebook_panel_name,
-                    notebook_panel_code=entry.panel_code,
+                    panel_family_code=entry.panel_code,
                     threshold_kind=entry.threshold_kind,
                     threshold_low=entry.threshold_low,
                     threshold_high=entry.threshold_high,
@@ -1735,7 +1705,7 @@ try {{
         return gene_category, selection
 
     def _direct_family_memberships_for_gene(self, *, cohort: PreparedCohort, gene_index: int) -> list[GeneQueryMembership]:
-        """Evaluate one gene against the eight notebook families only."""
+        """Evaluate one gene against the eight family modes."""
 
         values = cohort.filtered_values[:, [gene_index]]
         limits = cohort.limits[[gene_index]]
@@ -1778,8 +1748,7 @@ try {{
                 GeneQueryMembership(
                     gene_category=gene_category,
                     panel_family_name=entry.panel_family_name,
-                    notebook_panel_name=entry.notebook_panel_name,
-                    notebook_panel_code=entry.panel_code,
+                    panel_family_code=entry.panel_code,
                     threshold_kind=entry.threshold_kind,
                     threshold_low=entry.threshold_low,
                     threshold_high=entry.threshold_high,
@@ -1994,14 +1963,11 @@ try {{
         return max(0, minimum_count - 1)
 
     def _minimum_significant_subsplit_threshold(self, size: int, *, pvalue: float) -> int:
-        """Translate `pvaluethresholdplus`.
+        """Return the split-support threshold for two-sided family checks.
 
-        In the notebook this is the first cumulative Binomial threshold whose
-        lower-tail probability exceeds the chosen p-value.
-
-        In manuscript terms this controls whether both sides of a two-tailed or
-        inside pattern are sufficiently populated to justify the proposed
-        expression dysregulation pattern.
+        This controls whether both sides of a two-tailed pattern are
+        sufficiently populated to justify the proposed expression
+        dysregulation pattern.
         """
 
         cumulative = math.exp(size * math.log(1.0 - self.parameters.split_probability))
@@ -2036,12 +2002,7 @@ try {{
 
 
 def panel_entries_to_frame(entries: list[PanelEntry]) -> pd.DataFrame:
-    """Convert panel dataclasses into a tidy export table.
-
-    The exported table uses manuscript-facing labels so that downstream users
-    can compare the software output directly against the paper and
-    supplementary material.
-    """
+    """Convert panel dataclasses into a tidy export table."""
 
     rows = []
     for entry in entries:
@@ -2050,11 +2011,10 @@ def panel_entries_to_frame(entries: list[PanelEntry]) -> pd.DataFrame:
                 "gene_index_1based": entry.gene_index + 1,
                 "gene_id": entry.gene_id,
                 "gene_name": entry.gene_name,
-                "legacy_reference_value": entry.reference,
+                "reference_value": entry.reference,
                 "panel_family_name": entry.panel_family_name,
+                "panel_family_code": entry.panel_code,
                 "gene_category": "T-gene" if "Only-T" in entry.panel_family_name else "N-gene",
-                "notebook_panel_name": entry.notebook_panel_name,
-                "notebook_panel_code": entry.panel_code,
                 "threshold_kind": entry.threshold_kind,
                 "threshold_low": entry.threshold_low,
                 "threshold_high": entry.threshold_high,
@@ -2446,8 +2406,7 @@ def _gene_query_to_json_dict(query: GeneQueryResult) -> dict[str, object]:
             {
                 "gene_category": membership.gene_category,
                 "panel_family_name": membership.panel_family_name,
-                "notebook_panel_name": membership.notebook_panel_name,
-                "notebook_panel_code": membership.notebook_panel_code,
+                "panel_family_code": membership.panel_family_code,
                 "threshold_kind": membership.threshold_kind,
                 "threshold_low": membership.threshold_low,
                 "threshold_high": membership.threshold_high,
@@ -2491,6 +2450,7 @@ def _gene_query_results_to_frame(queries: list[GeneQueryResult]) -> pd.DataFrame
                     "gene_class": query.gene_class,
                     "gene_category": "",
                     "panel_family_name": "",
+                    "panel_family_code": np.nan,
                     "threshold_kind": "",
                     "threshold_low": np.nan,
                     "threshold_high": np.nan,
@@ -2512,6 +2472,7 @@ def _gene_query_results_to_frame(queries: list[GeneQueryResult]) -> pd.DataFrame
                     "gene_class": query.gene_class,
                     "gene_category": membership.gene_category,
                     "panel_family_name": membership.panel_family_name,
+                    "panel_family_code": membership.panel_family_code,
                     "threshold_kind": membership.threshold_kind,
                     "threshold_low": membership.threshold_low,
                     "threshold_high": membership.threshold_high,

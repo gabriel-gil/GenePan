@@ -1,0 +1,37 @@
+{
+  "gene_name": "GENE",
+  "gene_id": "g0",
+  "gene_class": "NT-gene",
+  "memberships": [
+    {
+      "gene_category": "T-gene",
+      "panel_family_name": "Only-T-above",
+      "panel_family_code": 1,
+      "threshold_kind": "single",
+      "threshold_low": 0.5,
+      "threshold_high": null,
+      "exclusive_interval_low": 0.4,
+      "exclusive_interval_high": null,
+      "n_activation_count": 0,
+      "n_activation_frequency": 0.0,
+      "t_activation_count": 2,
+      "t_activation_frequency": 1.0,
+      "passes_significance": true
+    },
+    {
+      "gene_category": "N-gene",
+      "panel_family_name": "Only-N-below",
+      "panel_family_code": 4,
+      "threshold_kind": "single",
+      "threshold_low": 0.3,
+      "threshold_high": null,
+      "exclusive_interval_low": null,
+      "exclusive_interval_high": 0.4,
+      "n_activation_count": 2,
+      "n_activation_frequency": 1.0,
+      "t_activation_count": 0,
+      "t_activation_frequency": 0.0,
+      "passes_significance": true
+    }
+  ]
+}
