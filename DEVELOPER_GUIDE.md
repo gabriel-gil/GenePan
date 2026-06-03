@@ -253,6 +253,9 @@ Suggested commands:
 # Run small artifact-based checks during routine development.
 & $PY -m pytest -m regression_fast
 
+# Run local full-cohort artifact checks before release.
+& $PY -m pytest -m regression_slow
+
 # Run all artifact-based checks.
 & $PY -m pytest -m regression_tests
 ```

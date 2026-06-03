@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import numpy as np
+import os
+import pandas as pd
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,7 @@ smoke = pytest.mark.smoke_tests
 consistency = pytest.mark.consistency_checks
 regression = pytest.mark.regression_tests
 regression_fast = pytest.mark.regression_fast
+regression_slow = pytest.mark.regression_slow
 
 
 def make_engine() -> genepan.GenePan:
@@ -61,6 +64,19 @@ def make_toy_result() -> genepan.GenePanResult:
 
 def fixture_path(*parts: str) -> Path:
     return Path(__file__).parent / "fixtures" / "regression_fast" / Path(*parts)
+
+
+def local_prad_reference_dir() -> Path:
+    return Path(
+        os.environ.get(
+            "GENEPAN_PRAD_REFERENCE_DIR",
+            r"C:\Users\gabri\Documents\Codex\2026-04-28\could-you-reach-a-github-private\correct_tcga_sample_matrices\PRAD",
+        )
+    )
+
+
+def local_prad_data_dir() -> Path:
+    return Path(os.environ.get("GENEPAN_PRAD_DATA_DIR", r"C:\Users\gabri\GenePan\TCGA-PRAD"))
 
 
 @smoke
@@ -433,6 +449,39 @@ def test_fast_regression_gene_query_matches_fixture() -> None:
     expected = json.loads(fixture_path("gene_query_GENE.json").read_text(encoding="utf-8"))
 
     assert actual == expected
+
+
+@regression
+@regression_slow
+def test_slow_regression_prad_cchains_export_matches_validated_artifacts(tmp_path: Path) -> None:
+    data_dir = local_prad_data_dir()
+    reference_dir = local_prad_reference_dir()
+    required_paths = [
+        data_dir / "sample.xls",
+        reference_dir / "sampleT_correct_gene_level.txt",
+        reference_dir / "sampleN_correct_gene_level.txt",
+        reference_dir / "T_gene_order.tsv",
+        reference_dir / "N_gene_order.tsv",
+    ]
+    missing = [str(path) for path in required_paths if not path.exists()]
+    if missing:
+        pytest.skip("Local PRAD data/reference artifacts are unavailable: " + "; ".join(missing))
+
+    result = genepan.GenePan(data_dir).run()
+    genepan.write_outputs(result, tmp_path)
+
+    assert (tmp_path / "T_Network" / "data" / "sample.txt").read_bytes() == (
+        reference_dir / "sampleT_correct_gene_level.txt"
+    ).read_bytes()
+    assert (tmp_path / "N_Network" / "data" / "sample.txt").read_bytes() == (
+        reference_dir / "sampleN_correct_gene_level.txt"
+    ).read_bytes()
+
+    for prefix, network in [("T", "T_Network"), ("N", "N_Network")]:
+        exported_names = (tmp_path / network / "data" / "names.csv").read_text(encoding="utf-8").splitlines()
+        order = pd.read_csv(reference_dir / f"{prefix}_gene_order.tsv", sep="\t")
+        expected_names = order["gene_id_base"].astype(str).tolist()
+        assert exported_names == expected_names
 
 
 @consistency
